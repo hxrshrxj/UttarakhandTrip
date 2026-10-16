@@ -15,6 +15,9 @@ let selectedDayIndex = 0;
 const savedChoice = readPreference("uttarakhand-day-3-choice", "George Everest");
 let selectedDayChoice = days[2].choice.options.includes(savedChoice) ? savedChoice : "George Everest";
 let currentDetailsTab = "transport";
+let ticketDatabasePromise;
+let ticketThumbnailUrls = [];
+let ticketRecords = [];
 let expandedChapterKey = null;
 let expandedStopIndex = null;
 let toastTimeout;
@@ -505,6 +508,18 @@ function renderPriorityCards() {
 }
 
 function renderDetails(key) {
+  currentDetailsTab = key;
+  if (key === "tickets") {
+    all(".detail-tab").forEach((button) => {
+      const selected = button.dataset.detail === key;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-selected", String(selected));
+      button.tabIndex = selected ? 0 : -1;
+    });
+    byId("essentialsContent").setAttribute("aria-labelledby", "detailsTabTickets");
+    renderTickets();
+    return;
+  }
   const details = essentials[key];
   byId("essentialsContent").innerHTML = details.content;
   all(".detail-tab").forEach((button) => {
@@ -516,6 +531,235 @@ function renderDetails(key) {
   byId("essentialsContent").setAttribute("aria-labelledby", `detailsTab${key[0].toUpperCase()}${key.slice(1)}`);
   currentDetailsTab = key;
 }
+
+function openTicketDatabase() {
+  if (ticketDatabasePromise) return ticketDatabasePromise;
+  ticketDatabasePromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open("uttarakhand-local-tickets", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("tickets", { keyPath: "id", autoIncrement: true });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Could not open local ticket storage."));
+    request.onblocked = () => reject(new Error("Ticket storage is busy in another tab. Close other trip tabs and try again."));
+  });
+  return ticketDatabasePromise;
+}
+
+function ticketTransaction(mode, action) {
+  return openTicketDatabase().then((database) => new Promise((resolve, reject) => {
+    const transaction = database.transaction("tickets", mode);
+    const request = action(transaction.objectStore("tickets"));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Ticket storage request failed."));
+    transaction.onabort = () => reject(transaction.error || new Error("Ticket storage is unavailable."));
+  }));
+}
+
+function formatFileSize(size) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(0)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+}
+
+function renderTickets() {
+  const panel = byId("essentialsContent");
+  panel.innerHTML = `<section class="ticket-vault" aria-labelledby="ticketVaultTitle">
+    <div class="ticket-vault-heading"><div><p class="eyebrow">Just for this device</p><h3 id="ticketVaultTitle">Tickets &amp; bookings</h3><p>Keep your travel documents close, even when you’re offline.</p></div><span class="ticket-vault-mark" aria-hidden="true"><svg><use href="#icon-ticket"/></svg></span></div>
+    <label class="ticket-upload" for="ticketUpload"><svg aria-hidden="true"><use href="#icon-install"/></svg><strong>Add tickets</strong><span>Choose screenshots, photos, PDFs or other files</span><input id="ticketUpload" type="file" multiple></label>
+    <p class="ticket-privacy"><svg aria-hidden="true"><use href="#icon-check"/></svg>Private to this device · add a name and booking note anytime.</p>
+    <label class="ticket-search"><svg aria-hidden="true"><use href="#icon-search"/></svg><span class="sr-only">Search tickets</span><input id="ticketSearch" type="search" placeholder="Search tickets, names, notes…" autocomplete="off"><kbd>/</kbd></label>
+    <div class="ticket-list-head"><h4>Your saved tickets</h4><span id="ticketCount">Loading…</span></div>
+    <div class="ticket-list" id="ticketList" aria-live="polite"><p class="ticket-loading">Opening this device’s ticket wallet…</p></div>
+    <p class="ticket-storage-note">Files stay available offline in this browser. Clearing browser data or changing devices will remove access, so keep your original booking files too.</p>
+  </section>`;
+  loadTicketList();
+}
+
+async function loadTicketList() {
+  try {
+    ticketRecords = await ticketTransaction("readonly", (store) => store.getAll());
+    if (currentDetailsTab !== "tickets") return;
+    renderTicketList();
+  } catch (error) {
+    if (currentDetailsTab !== "tickets") return;
+    byId("ticketCount").textContent = "Unavailable";
+    byId("ticketList").innerHTML = `<div class="ticket-error"><strong>Local storage isn’t available</strong><p>${escapeHTML(error.message || "Try opening this app in a browser with site storage enabled.")}</p></div>`;
+  }
+}
+
+function renderTicketList() {
+  ticketThumbnailUrls.forEach((url) => URL.revokeObjectURL(url));
+  ticketThumbnailUrls = [];
+  byId("ticketCount").textContent = `${ticketRecords.length} ${ticketRecords.length === 1 ? "ticket" : "tickets"}`;
+  if (!ticketRecords.length) {
+    byId("ticketList").innerHTML = `<div class="ticket-empty"><span aria-hidden="true">✳</span><strong>No tickets saved yet</strong><p>Add your train, hotel, attraction or other booking files here. They’ll stay on this device for your trip.</p></div>`;
+    return;
+  }
+  byId("ticketList").innerHTML = ticketRecords.map((ticket) => {
+    const isImage = ticket.type?.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(ticket.name);
+    const isPDF = ticket.type === "application/pdf" || /\.pdf$/i.test(ticket.name);
+    const kind = isImage ? "Image" : isPDF ? "PDF" : "File";
+    const displayName = ticket.customName?.trim() || ticket.name;
+    const thumbUrl = URL.createObjectURL(ticket.blob);
+    ticketThumbnailUrls.push(thumbUrl);
+    const thumb = isImage ? `<img src="${thumbUrl}" alt="" loading="lazy">` : isPDF ? `<iframe src="${thumbUrl}#page=1&view=FitH&toolbar=0&navpanes=0" title="First page of ${escapeHTML(displayName)}" tabindex="-1" loading="lazy"></iframe><span class="ticket-pdf-badge">PDF</span>` : `<span class="ticket-file-icon" aria-hidden="true"><svg><use href="#icon-ticket"/></svg><small>${escapeHTML((ticket.name.split(".").pop() || "FILE").slice(0, 5).toUpperCase())}</small></span>`;
+    return `<article class="ticket-file" data-ticket-id="${ticket.id}"><div class="ticket-open" role="button" tabindex="0" data-ticket-action="open" data-ticket-id="${ticket.id}" aria-label="Open ${escapeHTML(displayName)}"><span class="ticket-thumb ${isPDF ? "ticket-thumb-pdf" : ""}">${thumb}</span><span class="ticket-file-copy"><strong title="${escapeHTML(displayName)}">${escapeHTML(displayName)}</strong>${ticket.customName?.trim() ? `<span class="ticket-original-name" title="${escapeHTML(ticket.name)}">${escapeHTML(ticket.name)}</span>` : ""}<span>${kind} · ${formatFileSize(ticket.size)}</span>${ticket.customNote?.trim() ? `<span class="ticket-saved-note">${escapeHTML(ticket.customNote)}</span>` : ""}<span class="ticket-open-hint">Open ticket <span aria-hidden="true">↗</span></span></span></div><div class="ticket-file-actions"><button class="ticket-action" type="button" data-ticket-action="edit" data-ticket-id="${ticket.id}">${ticket.customName || ticket.customNote ? "Edit details" : "Add name / note"}</button><button class="ticket-action" type="button" data-ticket-action="download" data-ticket-id="${ticket.id}">Save file</button><button class="ticket-action ticket-delete" type="button" data-ticket-action="delete" data-ticket-id="${ticket.id}" aria-label="Remove ${escapeHTML(displayName)}">×</button></div><div class="ticket-edit" hidden><label>Ticket name<input class="ticket-name-input" type="text" maxlength="80" placeholder="e.g. Return train ticket" value="${escapeHTML(ticket.customName || "")}"></label><label>Personal note <span>(optional)</span><textarea class="ticket-note-input" rows="2" maxlength="240" placeholder="Booking code, travel date, or anything useful">${escapeHTML(ticket.customNote || "")}</textarea></label><div class="ticket-edit-actions"><button class="ticket-action" type="button" data-ticket-action="cancel-edit">Cancel</button><button class="ticket-action ticket-edit-save" type="button" data-ticket-action="save-edit">Save details</button></div></div></article>`;
+  }).join("");
+  const noResults = document.createElement("div");
+  noResults.className = "ticket-empty ticket-no-results";
+  noResults.hidden = true;
+  noResults.innerHTML = "<strong>No matching tickets</strong><p>Try another name, file type or note.</p>";
+  byId("ticketList").append(noResults);
+  filterTicketCards();
+}
+
+function filterTicketCards() {
+  if (!byId("ticketSearch")) return;
+  const query = byId("ticketSearch").value.trim().toLocaleLowerCase();
+  let visibleCount = 0;
+  all(".ticket-file").forEach((card) => {
+    const record = ticketRecords.find((ticket) => String(ticket.id) === card.dataset.ticketId);
+    const haystack = record ? `${record.name} ${record.customName || ""} ${record.customNote || ""} ${record.type || ""}`.toLocaleLowerCase() : "";
+    card.hidden = !haystack.includes(query);
+    if (!card.hidden) visibleCount += 1;
+  });
+  const noResults = byId("ticketList").querySelector(".ticket-no-results");
+  if (noResults) noResults.hidden = visibleCount > 0 || !query;
+  if (query) byId("ticketCount").textContent = `${visibleCount} of ${ticketRecords.length}`;
+  else byId("ticketCount").textContent = `${ticketRecords.length} ${ticketRecords.length === 1 ? "ticket" : "tickets"}`;
+}
+
+async function openTicket(id) {
+  try {
+    const ticket = await ticketTransaction("readonly", (store) => store.get(Number(id)));
+    if (!ticket) throw new Error("This file is no longer in your ticket wallet.");
+    const url = URL.createObjectURL(ticket.blob);
+    const body = byId("ticketViewerBody");
+    byId("ticketViewerTitle").textContent = ticket.customName?.trim() || ticket.name;
+    body.replaceChildren();
+    if (ticket.type?.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(ticket.name)) {
+      const image = document.createElement("img");
+      image.src = url;
+      image.alt = ticket.name;
+      body.append(image);
+    } else if (ticket.type === "application/pdf" || /\.pdf$/i.test(ticket.name)) {
+      const frame = document.createElement("iframe");
+      frame.src = url;
+      frame.title = `PDF document ${ticket.name}`;
+      body.append(frame);
+    } else if (ticket.type?.startsWith("video/") || ticket.type?.startsWith("audio/")) {
+      const media = document.createElement(ticket.type.startsWith("video/") ? "video" : "audio");
+      media.src = url;
+      media.controls = true;
+      body.append(media);
+    } else {
+      URL.revokeObjectURL(url);
+      const message = document.createElement("div");
+      message.className = "ticket-open-fallback";
+      message.innerHTML = `<strong>This file opens in its own app</strong><p>${escapeHTML(ticket.name)}</p>`;
+      const download = document.createElement("button");
+      download.className = "ticket-action ticket-edit-save";
+      download.type = "button";
+      download.textContent = "Save file to this device";
+      download.addEventListener("click", () => downloadTicket(ticket));
+      message.append(download);
+      body.append(message);
+    }
+    const dialog = byId("ticketViewer");
+    dialog.dataset.objectUrl = url;
+    dialog.showModal();
+  } catch (error) { showToast(error.message || "Could not open this file"); }
+}
+
+function downloadTicket(ticket) {
+  const url = URL.createObjectURL(ticket.blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = ticket.name;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const ticketPanel = byId("essentialsContent");
+ticketPanel.addEventListener("change", async (event) => {
+  if (event.target.id !== "ticketUpload" || !event.target.files?.length) return;
+  const files = [...event.target.files];
+  event.target.value = "";
+  try {
+    for (const file of files) await ticketTransaction("readwrite", (store) => store.add({ name: file.name, type: file.type || "application/octet-stream", size: file.size, addedAt: Date.now(), blob: file }));
+    showToast(`${files.length} ${files.length === 1 ? "file" : "files"} saved on this device`);
+    loadTicketList();
+  } catch (error) {
+    showToast(error.name === "QuotaExceededError" ? "This device is out of storage space" : error.message || "Could not save these files");
+    loadTicketList();
+  }
+});
+
+ticketPanel.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-ticket-action]");
+  if (!button) return;
+  const card = button.closest(".ticket-file");
+  const action = button.dataset.ticketAction;
+  const id = button.dataset.ticketId || card?.dataset.ticketId;
+  if (action === "edit") {
+    card.querySelector(".ticket-edit").hidden = false;
+    card.querySelector(".ticket-name-input").focus();
+    return;
+  }
+  if (action === "cancel-edit") { card.querySelector(".ticket-edit").hidden = true; return; }
+  if (!/^\d+$/.test(String(id))) { showToast("Could not identify this ticket. Refresh the Details tab and try again."); return; }
+  if (action === "open") return openTicket(id);
+  try {
+    const ticket = await ticketTransaction("readonly", (store) => store.get(Number(id)));
+    if (!ticket) throw new Error("This file is no longer in your ticket wallet.");
+    if (action === "save-edit") {
+      ticket.customName = card.querySelector(".ticket-name-input").value.trim();
+      ticket.customNote = card.querySelector(".ticket-note-input").value.trim();
+      await ticketTransaction("readwrite", (store) => store.put(ticket));
+      showToast("Ticket details saved on this device");
+      loadTicketList();
+      return;
+    }
+    if (action === "download") {
+      downloadTicket(ticket);
+    }
+    if (action === "delete") {
+      if (!window.confirm(`Remove “${ticket.name}” from this device?`)) return;
+      await ticketTransaction("readwrite", (store) => store.delete(Number(id)));
+      showToast("Ticket removed from this device");
+      loadTicketList();
+    }
+  } catch (error) { showToast(error.message || "Could not complete that action"); }
+});
+
+byId("closeTicketViewer").addEventListener("click", () => byId("ticketViewer").close());
+byId("ticketViewer").addEventListener("close", (event) => {
+  const dialog = event.currentTarget;
+  if (dialog.dataset.objectUrl) URL.revokeObjectURL(dialog.dataset.objectUrl);
+  delete dialog.dataset.objectUrl;
+  byId("ticketViewerBody").replaceChildren();
+});
+
+ticketPanel.addEventListener("input", (event) => {
+  if (event.target.id === "ticketSearch") filterTicketCards();
+});
+
+ticketPanel.addEventListener("keydown", (event) => {
+  const openTarget = event.target.closest(".ticket-open");
+  if (openTarget && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    openTicket(openTarget.dataset.ticketId);
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "/" || currentDetailsTab !== "tickets" || event.target.matches("input,textarea,[contenteditable='true']")) return;
+  event.preventDefault();
+  byId("ticketSearch")?.focus();
+});
 
 function showToast(message) {
   const toast = byId("toast");

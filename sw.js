@@ -1,4 +1,4 @@
-const SHELL_CACHE = "uttarakhand-shell-v3";
+const SHELL_CACHE = "uttarakhand-shell-v5";
 const PHOTO_CACHE = "uttarakhand-photos-v1";
 const SHELL_FILES = [
   "./",

@@ -25,6 +25,8 @@
       <symbol id="icon-days" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4m8-4v4M4 10h16m-12 4h3m-3 3h7"/></symbol>
       <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 2 2.3 6.3L21 11l-6.7 2.7L12 20l-2.3-6.3L3 11l6.7-2.7z"/><path d="m19 15 1.1 2.9L23 19l-2.9 1.1L19 23l-1.1-2.9L15 19l2.9-1.1z"/></symbol>
       <symbol id="icon-guide" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21z"/><path d="M4 5.5v13M8 7h8m-8 4h8m-8 4h5"/></symbol>
+      <symbol id="icon-ticket" viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5V9a3 3 0 0 0 0 6v2.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5V15a3 3 0 0 0 0-6z"/><path d="M14 7v2m0 3v2m0 3v.01"/></symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></symbol>
       <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 19 19 5M7 5h12v12"/></symbol>
       <symbol id="icon-install" viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></symbol>
       <symbol id="icon-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
@@ -100,14 +102,15 @@
         </section>
 
         <section class="screen" id="screen-details" data-screen="details" role="tabpanel" tabindex="0" aria-labelledby="tabDetails" hidden>
-          <div class="details-hero"><div class="details-doodle">₹</div><p class="eyebrow">The useful stuff</p><h2 id="detailsTitle">Good to know.<br /><em>Better to have.</em></h2><p>Transport, prices and practical notes—all together for the road.</p></div>
+          <div class="details-hero"><div class="details-doodle">₹</div><p class="eyebrow">The useful stuff</p><h2 id="detailsTitle">Good to know.<br /><em>Better to have.</em></h2><p>Transport, prices, practical notes and your travel documents—all together for the road.</p></div>
           <div class="detail-tabs" role="tablist" aria-label="Trip details">
             <button class="detail-tab active" id="detailsTabTransport" data-detail="transport" aria-controls="essentialsContent" role="tab" aria-selected="true" tabindex="0"><svg><use href="#icon-car"/></svg><span>Getting around</span></button>
             <button class="detail-tab" id="detailsTabCosts" data-detail="costs" aria-controls="essentialsContent" role="tab" aria-selected="false" tabindex="-1"><svg><use href="#icon-coin"/></svg><span>Costs</span></button>
             <button class="detail-tab" id="detailsTabNotes" data-detail="notes" aria-controls="essentialsContent" role="tab" aria-selected="false" tabindex="-1"><svg><use href="#icon-guide"/></svg><span>Notes</span></button>
+            <button class="detail-tab" id="detailsTabTickets" data-detail="tickets" aria-controls="essentialsContent" role="tab" aria-selected="false" tabindex="-1"><svg><use href="#icon-ticket"/></svg><span>Tickets</span></button>
           </div>
           <div class="details-panel" id="essentialsContent" role="tabpanel" tabindex="0" aria-labelledby="detailsTabTransport"></div>
-          <p class="details-disclaimer">All amounts are planning figures from your itinerary. Confirm changeable prices and operating details locally.</p>
+          <p class="details-disclaimer">Trip prices are planning figures; confirm changeable costs locally. Ticket files are stored only in this browser on this device.</p>
         </section>
       </main>
 
@@ -118,6 +121,7 @@
         <button class="nav-item" id="tabDetails" data-tab="details" aria-controls="screen-details" role="tab" aria-selected="false" tabindex="-1"><svg><use href="#icon-guide"/></svg><span>Details</span></button>
       </nav>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <dialog class="ticket-viewer" id="ticketViewer" aria-labelledby="ticketViewerTitle"><div class="ticket-viewer-head"><h2 id="ticketViewerTitle">Ticket</h2><button type="button" id="closeTicketViewer" aria-label="Close ticket">×</button></div><div class="ticket-viewer-body" id="ticketViewerBody"></div></dialog>
     </div>
     <script src="app.js"></script>
     <script src="ui.js"></script>
