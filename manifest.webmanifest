@@ -1,0 +1,41 @@
+{
+  "id": "./",
+  "name": "Uttarakhand · The Trip Companion",
+  "short_name": "Uttarakhand",
+  "description": "A thoughtful, offline-ready guide to five days across Haridwar, Rishikesh, Mussoorie and Dehradun.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#f8f7f1",
+  "theme_color": "#f8f7f1",
+  "lang": "en-IN",
+  "categories": ["travel", "lifestyle"],
+  "icons": [
+    {
+      "src": "icons/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
