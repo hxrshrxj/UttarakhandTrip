@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#f8f7f1" />
+    <meta name="theme-color" content="#ffffff" />
     <meta name="description" content="Five days through Haridwar, Rishikesh, Mussoorie and Dehradun." />
     <meta name="application-name" content="Uttarakhand Trip" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="icons/app-icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <title>Uttarakhand · 18–22 October 2026</title>
   </head>
@@ -54,55 +54,62 @@
           <div class="home-hero">
             <div class="hero-copy">
               <span class="date-pill"><span class="date-pill-dot"></span> 18–22 October 2026</span>
-              <h1 id="homeTitle">Five days.<br /><em>All yours.</em></h1>
+              <h1 id="homeTitle">Five days.<em>Zero guesswork.</em></h1>
               <p>From the evening aarti at Har Ki Pauri to the mountain roads above Mussoorie.</p>
               <button class="joy-button" data-tab="days">Explore the itinerary <span>→</span></button>
             </div>
             <figure class="home-hero-photo">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/6/63/Evening_aarti_at_Har-ki-pauri%2C_Haridwar.JPG" alt="Evening Ganga Aarti at Har Ki Pauri in Haridwar" />
+              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Aarti_at_Har-ki-Pauri%2C_Haridwar.jpg/1920px-Aarti_at_Har-ki-Pauri%2C_Haridwar.jpg" alt="Evening Ganga Aarti at Har Ki Pauri in Haridwar" />
               <figcaption><span>Har Ki Pauri, at dusk</span><span>Haridwar · day 1</span></figcaption>
             </figure>
           </div>
 
           <div class="home-body">
-            <div class="welcome-row"><div><p class="eyebrow">The route</p><h2>Four places,<br /><em>one good journey.</em></h2></div></div>
+            <div class="welcome-row"><div><p class="eyebrow">The route</p><h2>Four places,<br /><em>one clean plan.</em></h2></div></div>
+            <figure class="route-profile" aria-label="Route profile: Haridwar at 294 m, Rishikesh at 340 m, a climb to Mussoorie at 2,005 m, then down to Dehradun at 450 m">
+              <svg class="route-relief" viewBox="0 0 1000 190" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                <defs><linearGradient id="routeRidge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dbe6f3" /><stop offset="1" stop-color="#f6f9fc" /></linearGradient></defs>
+                <path class="route-fill" d="M0,160 L70,152 L125,150 L220,146 L300,141 L375,143 L430,124 L480,96 L530,66 L575,46 L625,40 L675,44 L725,62 L775,84 L825,106 L860,120 L875,126 L930,132 L1000,126 L1000,190 L0,190 Z" />
+                <path class="route-line" d="M0,160 L70,152 L125,150 L220,146 L300,141 L375,143 L430,124 L480,96 L530,66 L575,46 L625,40 L675,44 L725,62 L775,84 L825,106 L860,120 L875,126 L930,132 L1000,126" />
+              </svg>
+              <div class="route-stops">
+                <div class="route-point"><span>Haridwar</span><small><b>294 m</b><i>Day 1</i></small></div>
+                <div class="route-point"><span>Rishikesh</span><small><b>340 m</b><i>Day 2</i></small></div>
+                <div class="route-point"><span>Mussoorie</span><small><b>2,005 m</b><i>Days 3–4</i></small></div>
+                <div class="route-point"><span>Dehradun</span><small><b>450 m</b><i>Day 5</i></small></div>
+              </div>
+            </figure>
             <section class="destination-section" aria-labelledby="destinationTitle">
-              <div class="destination-heading"><div><p class="eyebrow">Pick your next view</p><h3 id="destinationTitle">A little preview of the road.</h3></div><span>3 DESTINATIONS</span></div>
+              <div class="destination-heading"><div><p class="eyebrow">Explore ahead</p><h3 id="destinationTitle">Where you're headed.</h3></div><span>3 DESTINATIONS</span></div>
               <div class="destination-gallery" id="destinationGallery" aria-label="Explore trip destinations"></div>
-              <p class="destination-credits">Photo credits: <a href="https://www.incredibleindia.gov.in/en/uttarakhand/rishikesh" target="_blank" rel="noopener noreferrer">Incredible India · Rishikesh</a>, <a href="https://www.incredibleindia.gov.in/en/uttarakhand/mussoorie" target="_blank" rel="noopener noreferrer">Incredible India · Mussoorie</a>, <a href="https://uttarakhandtourism.gov.in/destination/dehradun" target="_blank" rel="noopener noreferrer">Uttarakhand Tourism</a> and <a href="https://commons.wikimedia.org/wiki/File:Evening_aarti_at_Har-ki-pauri,_Haridwar.JPG" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>.</p>
+              <p class="destination-credits">Destination photos from <a href="https://commons.wikimedia.org/wiki/File:13_Manzil_Temple_Rishikesh_2021.jpg" target="_blank" rel="noopener noreferrer">13 Manzil Temple, Rishikesh</a>, <a href="https://commons.wikimedia.org/wiki/File:Mussoorie_Hill_Station.jpg" target="_blank" rel="noopener noreferrer">Mussoorie Hill Station</a> and <a href="https://commons.wikimedia.org/wiki/File:Mindrolling_Monastery_Stupa,_Dehradun_(60657).jpg" target="_blank" rel="noopener noreferrer">Mindrolling Monastery</a> · Wikimedia Commons.</p>
             </section>
-            <div class="route-ribbon" aria-label="Haridwar to Dehradun through Rishikesh and Mussoorie">
-              <div class="route-stop"><span class="route-dot coral-dot"></span><strong>Haridwar</strong><small>Day 1</small></div><span class="route-dash"></span>
-              <div class="route-stop"><span class="route-dot blue-dot"></span><strong>Rishikesh</strong><small>Day 2</small></div><span class="route-dash"></span>
-              <div class="route-stop"><span class="route-dot lilac-dot"></span><strong>Mussoorie</strong><small>Days 3–4</small></div><span class="route-dash"></span>
-              <div class="route-stop"><span class="route-dot green-dot"></span><strong>Dehradun</strong><small>Day 5</small></div>
-            </div>
             <div class="home-next-card">
               <div class="next-text"><p class="eyebrow">Your first day</p><h3>Temples, river<br />&amp; golden light.</h3><p>Arrive in Haridwar · 18 October</p><button class="text-button" data-open-day="0">See the day plan <span>→</span></button></div>
-            <img src="https://upload.wikimedia.org/wikipedia/commons/6/63/Evening_aarti_at_Har-ki-pauri%2C_Haridwar.JPG" alt="" />
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Ganga_arti_at_Haridwar.JPG/1920px-Ganga_arti_at_Haridwar.JPG" alt="" />
             </div>
             <div class="home-note"><span class="note-icon"><svg><use href="#icon-clock"/></svg></span><p><strong>Plans with room to flex.</strong><br />Opening times and local prices can change. The day notes keep each important check close by.</p></div>
           </div>
         </section>
 
         <section class="screen" id="screen-days" data-screen="days" role="tabpanel" tabindex="0" aria-labelledby="tabDays" hidden>
-          <div class="screen-heading days-heading"><p class="eyebrow">Your day-by-day guide</p><h2 id="daysTitle">Pick a day,<br /><em>see the whole story.</em></h2><p class="screen-lede">Swipe the day strip to choose a day. Open a time chapter, then tap a place for timings, travel, photos and notes.</p></div>
+          <div class="screen-heading days-heading"><p class="eyebrow">Day-by-day</p><h2 id="daysTitle">Pick a day,<br /><em>see the plan.</em></h2><p class="screen-lede">Choose a day, open a time block, then tap any stop for timings, maps, photos and notes.</p></div>
           <div class="day-picker" id="dayRail" role="tablist" aria-label="Choose a trip day"></div>
           <article class="day-card" id="dayFeature" role="tabpanel" tabindex="0" aria-labelledby="dayTitle">
-            <div class="day-cover"><img id="dayImage" alt="" /><div class="cover-shade"></div><div class="day-cover-top"><span id="dayStatus"></span></div><div class="day-cover-title"><span id="dayDate"></span><h3 id="dayTitle"></h3><p id="dayDek"></p></div><span class="day-big-number" id="dayNumberLarge"></span><a class="photo-credit" id="photoCredit" target="_blank" rel="noopener noreferrer"></a></div>
-          <div class="day-card-info"><div class="day-facts" id="atAGlance"></div><div class="day-plan-alert" id="dayPlanAlert" hidden></div><div class="midday-choice" id="choiceBlock"></div><div class="day-route-strip"><svg><use href="#icon-pin"/></svg><p id="dayRoute"></p></div><div class="stay-strip"><span class="stay-icon" aria-hidden="true"><svg><use href="#icon-home"/></svg></span><p id="dayHotel"></p><a id="hotelMap" class="stay-map" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#icon-map"/></svg>Map</a></div><div class="day-plan-heading"><div><p class="eyebrow">The day, in order</p><h4>What happens when</h4></div><div class="plan-progress"><span class="timeline-count" id="timelineCount"></span><div class="progress-meter" id="progressMeter" role="progressbar" aria-label="Day completion" aria-valuemin="0" aria-valuemax="16" aria-valuenow="0"><span id="progressFill"></span></div><button type="button" id="resetProgress" hidden>Reset</button><button type="button" id="saveDayOffline" title="Saving a day may replace older cached photos when storage is full">Save photos offline</button></div></div><div class="timeline" id="timeline"></div><div class="day-source-note" id="sheetFooterNote"></div></div>
+            <div class="day-cover"><img id="dayImage" alt="" /><div class="cover-shade"></div><div class="day-cover-top"><span id="dayToday" class="day-today"></span><span id="dayStatus"></span></div><div class="day-cover-title"><span id="dayDate"></span><h3 id="dayTitle"></h3><p id="dayDek"></p></div><span class="day-big-number" id="dayNumberLarge"></span><a class="photo-credit" id="photoCredit" target="_blank" rel="noopener noreferrer"></a></div>
+          <div class="day-card-info"><div class="day-facts" id="atAGlance"></div><div class="now-strip" id="nowStrip" role="status" aria-live="polite" hidden></div><div class="day-plan-alert" id="dayPlanAlert" hidden></div><div class="midday-choice" id="choiceBlock"></div><div class="day-logistics"><div class="day-route-strip"><svg><use href="#icon-pin"/></svg><p id="dayRoute"></p></div><div class="stay-strip"><span class="stay-icon" aria-hidden="true"><svg><use href="#icon-home"/></svg></span><p id="dayHotel"></p><a id="hotelMap" class="stay-map" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#icon-map"/></svg>Open map</a></div></div><div class="day-plan-heading"><div><p class="eyebrow">The day, in order</p><h4>What happens when</h4></div><div class="plan-progress"><span class="timeline-count" id="timelineCount"></span><div class="progress-meter" id="progressMeter" role="progressbar" aria-label="Day completion" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><span id="progressFill"></span></div><button type="button" id="resetProgress" hidden>Reset</button><button type="button" id="saveDayOffline" title="Saving a day may replace older cached photos when storage is full">Save photos offline</button></div></div><div class="timeline" id="timeline"></div><div class="day-source-note" id="sheetFooterNote"></div></div>
           </article>
         </section>
 
         <section class="screen" id="screen-focus" data-screen="focus" role="tabpanel" tabindex="0" aria-labelledby="tabFocus" hidden>
-          <div class="focus-hero"><p class="eyebrow">A good trip has a rhythm</p><h2 id="focusTitle">Keep the good<br /><em>bits in focus.</em></h2><p>Little reminders for the moments that make each day easier.</p></div>
-          <div class="focus-controls"><div><p class="eyebrow">Day by day</p><h3>Your pocket reminders</h3></div><span class="focus-count">5 NOTES</span></div>
+          <div class="focus-hero"><p class="eyebrow">Anchor moments</p><h2 id="focusTitle">Small checks,<br /><em>smoother days.</em></h2><p>The one reminder that matters for each day of the trip.</p></div>
+          <div class="focus-controls"><div><p class="eyebrow">Priority by day</p><h3>Keep each day on track</h3></div><span class="focus-count">5 REMINDERS</span></div>
           <div class="priority-grid" id="priorityGrid"></div>
           <div class="focus-footnote"><span aria-hidden="true"><svg><use href="#icon-sun"/></svg></span><p><strong>Gentle rule of thumb</strong><br />If a day starts running late, use its priority note to decide what can flex.</p></div>
         </section>
 
         <section class="screen" id="screen-details" data-screen="details" role="tabpanel" tabindex="0" aria-labelledby="tabDetails" hidden>
-          <div class="details-hero"><div class="details-doodle">₹</div><p class="eyebrow">The useful stuff</p><h2 id="detailsTitle">Good to know.<br /><em>Better to have.</em></h2><p>Transport, prices, practical notes and your travel documents—all together for the road.</p></div>
+          <div class="details-hero"><div class="details-doodle">₹</div><p class="eyebrow">The useful stuff</p><h2 id="detailsTitle">The essentials.</h2><p>Transport routes, planning costs, practical notes and your travel documents—in one place.</p></div>
           <div class="detail-tabs" role="tablist" aria-label="Trip details">
             <button class="detail-tab active" id="detailsTabTransport" data-detail="transport" aria-controls="essentialsContent" role="tab" aria-selected="true" tabindex="0"><svg><use href="#icon-car"/></svg><span>Getting around</span></button>
             <button class="detail-tab" id="detailsTabCosts" data-detail="costs" aria-controls="essentialsContent" role="tab" aria-selected="false" tabindex="-1"><svg><use href="#icon-coin"/></svg><span>Costs</span></button>

@@ -8,8 +8,8 @@
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#f8f7f1",
-  "theme_color": "#f8f7f1",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "lang": "en-IN",
   "categories": ["travel", "lifestyle"],
   "icons": [

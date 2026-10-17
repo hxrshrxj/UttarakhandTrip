@@ -11,7 +11,22 @@ function writePreference(key, value) {
   try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* Private browsing or file URLs may disable storage. */ }
 }
 
-let selectedDayIndex = 0;
+function localDateISO(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function initialDayIndex() {
+  const today = new Date();
+  const todayKey = localDateISO(today);
+  const match = days.findIndex((day) => day.dateISO === todayKey);
+  if (match >= 0) return match;
+  const savedIndex = readPreference("uttarakhand-selected-day", null);
+  if (Number.isInteger(savedIndex) && savedIndex >= 0 && savedIndex < days.length) return savedIndex;
+  const upcoming = days.findIndex((day) => day.dateISO > todayKey);
+  return upcoming >= 0 ? upcoming : days.length - 1;
+}
+
+let selectedDayIndex = initialDayIndex();
 const savedChoice = readPreference("uttarakhand-day-3-choice", "George Everest");
 let selectedDayChoice = days[2].choice.options.includes(savedChoice) ? savedChoice : "George Everest";
 let currentDetailsTab = "transport";
@@ -19,7 +34,7 @@ let ticketDatabasePromise;
 let ticketThumbnailUrls = [];
 let ticketRecords = [];
 let expandedChapterKey = null;
-let expandedStopIndex = null;
+let expandedStopIndex = days[selectedDayIndex].timeline.findIndex((item) => item.type !== "transport");
 let toastTimeout;
 let completedStops = readPreference("uttarakhand-completed-stops", {});
 let offlineDayPhotos = readPreference("uttarakhand-offline-day-photos", {});
@@ -45,23 +60,23 @@ const destinations = [
     days: "DAY 2 · 19 OCTOBER",
     note: "Waterfall morning & Ganga light",
     openDay: 1,
-    image: "https://assets.planyourpackage.com/activities/neer_garh/20251226_120355.webp",
-    alt: "Waterfall pool and green forest at Neer Garh near Rishikesh"
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/13_Manzil_Temple_Rishikesh_2021.jpg/1920px-13_Manzil_Temple_Rishikesh_2021.jpg",
+    alt: "The 13-storey Tera Manzil temple rising above the Ganga at Rishikesh"
   },
   {
     name: "Mussoorie",
     days: "DAYS 3–4 · 20–21 OCTOBER",
     note: "Waterfalls, Landour & the winterline",
     openDay: 2,
-    image: "https://s7ap1.scene7.com/is/image/incredibleindia/mussoorie-winterline-uttarakhand-city-ff?qlt=82&ts=1742167003317",
-    alt: "Layered Himalayan ridges and the winterline at sunset near Mussoorie"
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Mussoorie_Hill_Station.jpg/1920px-Mussoorie_Hill_Station.jpg",
+    alt: "Deodar pines and the distant snowline above Mussoorie"
   },
   {
     name: "Dehradun",
     days: "DAY 5 · 22 OCTOBER",
     note: "Cave water & the Great Stupa",
     openDay: 4,
-    image: "https://uttarakhandtourism.gov.in/assets/media/UTDB_media_1735989147Mindrolling_Monastery.jpg",
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Mindrolling_Monastery_Stupa%2C_Dehradun_%2860657%29.jpg/1920px-Mindrolling_Monastery_Stupa%2C_Dehradun_%2860657%29.jpg",
     alt: "The Great Stupa at Mindrolling Monastery in Dehradun"
   }
 ];
@@ -90,11 +105,33 @@ function getDayPhotoUrls(day) {
 
 function updateOfflineSaveButton(day) {
   const button = byId("saveDayOffline");
-  const cached = new Set(offlineDayPhotos[day.number] || []);
   const urls = getDayPhotoUrls(day);
-  const saved = urls.filter((url) => cached.has(url)).length;
+  const savedUrls = offlineDayPhotos[day.number] || [];
+  const saved = urls.filter((url) => savedUrls.includes(url)).length;
   button.textContent = saved === urls.length ? `Offline ready · ${saved} photos` : saved ? `Save photos · ${saved}/${urls.length}` : "Save photos offline";
   button.setAttribute("aria-label", saved === urls.length ? `Day ${day.number} photos saved offline` : `Save photos for Day ${day.number} for offline use`);
+}
+
+async function verifyOfflinePhotos(day) {
+  const urls = getDayPhotoUrls(day);
+  if (!navigator.serviceWorker?.controller) {
+    offlineDayPhotos[day.number] = [];
+    updateOfflineSaveButton(day);
+    return;
+  }
+  if (!urls.length) return;
+  const channel = new MessageChannel();
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error("Offline check timed out")), 2500);
+      channel.port1.onmessage = (message) => { window.clearTimeout(timeout); resolve(message.data); };
+      navigator.serviceWorker.controller.postMessage({ type: "CHECK_CACHED_PHOTOS", urls }, [channel.port2]);
+    });
+    if (day.number !== days[selectedDayIndex].number) return;
+    offlineDayPhotos[day.number] = result.cachedUrls || [];
+    writePreference("uttarakhand-offline-day-photos", offlineDayPhotos);
+    updateOfflineSaveButton(day);
+  } catch { /* Keep the save action available if cache inspection is unavailable. */ }
 }
 
 function switchTab(tabName) {
@@ -117,8 +154,9 @@ function switchTab(tabName) {
 function renderDayPicker() {
   byId("dayRail").innerHTML = days.map((day, index) => `
     <button class="day-chip ${index === selectedDayIndex ? "active" : ""}"
-      id="dayTab${day.number}" role="tab" aria-controls="dayFeature" aria-selected="${index === selectedDayIndex}" tabindex="${index === selectedDayIndex ? "0" : "-1"}" data-day="${index}" type="button">
-      <span>Day ${day.number}</span><span>${day.place}</span>
+      id="dayTab${day.number}" role="tab" aria-controls="dayFeature" aria-selected="${index === selectedDayIndex}" tabindex="${index === selectedDayIndex ? "0" : "-1"}" data-day="${index}" type="button" aria-label="Day ${day.number}, ${day.place}, ${day.date}, ${(completedStops[day.number] || []).length} of ${day.timeline.length} stops complete">
+      <span class="day-chip-top"><span>DAY ${String(day.number).padStart(2, "0")}</span><span class="day-chip-count">${(completedStops[day.number] || []).length}/${day.timeline.length}</span></span>
+      <span class="day-chip-place">${day.place}</span><span class="day-chip-date">${new Date(day.dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</span>
     </button>`).join("");
   byId("dayFeature").setAttribute("aria-labelledby", `dayTab${days[selectedDayIndex].number}`);
 }
@@ -141,6 +179,7 @@ function groupTimelineItems(items) {
 
 function renderTimeline() {
   const day = days[selectedDayIndex];
+  byId("dayFeature").dataset.day = String(day.number);
   const activeChapters = groupTimelineItems(day.timeline);
   byId("timeline").innerHTML = activeChapters.map((chapter, chapterIndex) => {
     const firstTime = chapter.items[0].item.time.split("–")[0];
@@ -158,7 +197,8 @@ function renderTimeline() {
       </section>`;
   }).join("");
   const firstChapterKey = activeChapters[0]?.key;
-  const expandedChapter = byId(`chapterItems${day.number}${expandedChapterKey || firstChapterKey}`);
+  const stopChapterKey = activeChapters.find((chapter) => chapter.items.some(({ index }) => index === expandedStopIndex))?.key;
+  const expandedChapter = byId(`chapterItems${day.number}${expandedChapterKey || stopChapterKey || firstChapterKey}`);
   if (expandedChapter) {
     const chapter = expandedChapter.closest(".timeline-chapter");
     chapter.classList.add("expanded");
@@ -199,79 +239,79 @@ function getStopPhoto(day, item) {
   const title = item.title.toLowerCase();
   const photo = (image, imagePlace, imageCredit, imageSource) => ({ image, imagePlace, imageCredit, imageSource });
   if (day.number === 1 && title.includes("mansa devi")) {
-    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Cable_car_to_Mansa_Devi_Temple%2C_Haridwar%2C_Uttarakhand%2C_India.jpg/960px-Cable_car_to_Mansa_Devi_Temple%2C_Haridwar%2C_Uttarakhand%2C_India.jpg", "Mansa Devi Temple ropeway above Haridwar", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Cable_car_to_Mansa_Devi_Temple,_Haridwar,_Uttarakhand,_India.jpg");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Mansa_Devi_Temple%2C_Haridwar.JPG/1920px-Mansa_Devi_Temple%2C_Haridwar.JPG", "Mansa Devi Temple and its cable car on the hill above Haridwar", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Mansa_Devi_Temple,_Haridwar.JPG");
   }
   if (day.number === 1 && title.includes("chandi devi")) {
     return photo("https://upload.wikimedia.org/wikipedia/commons/f/f9/Chandi_Devi_temple%2C_ropeway.jpg", "Chandi Devi Temple ropeway", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Chandi_Devi_temple,_ropeway.jpg");
   }
   if (day.number === 1 && (title.includes("ganga aarti") || title.includes("har ki pauri"))) {
-    return photo("https://upload.wikimedia.org/wikipedia/commons/6/63/Evening_aarti_at_Har-ki-pauri%2C_Haridwar.JPG", "Evening Ganga Aarti at Har Ki Pauri", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Evening_aarti_at_Har-ki-pauri,_Haridwar.JPG");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Evening_aarti_at_Har-ki-pauri%2C_Haridwar.JPG/1920px-Evening_aarti_at_Har-ki-pauri%2C_Haridwar.JPG", "Evening Ganga Aarti at Har Ki Pauri, Haridwar", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Evening_aarti_at_Har-ki-pauri,_Haridwar.JPG");
   }
   if (day.number === 1 && /moti baza{1,2}r/.test(title)) {
-    return photo("https://dynamic-media-cdn.tripadvisor.com/media/photo-o/21/6d/57/c7/old-famous-traditional.jpg?h=1200&s=1&w=1200", "Colorful pooja and souvenir stalls in Moti Bazaar", "Tripadvisor", "https://www.tripadvisor.in/Attraction_Review-g616028-d3727521-Reviews-Moti_Bazaar-Haridwar_Haridwar_District_Uttarakhand.html");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/A_shop_catering_to_pilgrims_at_Haridwar.jpg/1920px-A_shop_catering_to_pilgrims_at_Haridwar.jpg", "A Haridwar shop stacked with puja flowers, garlands and offerings", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:A_shop_catering_to_pilgrims_at_Haridwar.jpg");
   }
   if (day.number === 2 && title.includes("neer garh")) {
-    return photo("https://assets.planyourpackage.com/activities/neer_garh/20251226_120355.webp", "Natural pool below Neer Garh Waterfall", "PlanYourPackage", "https://www.planyourpackage.com/blogs/neer-garh-waterfall-rishikesh-2026-complete-guide/");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Neer_Garh_Waterfall.jpg/1920px-Neer_Garh_Waterfall.jpg", "Neer Garh Waterfall and its green pool near Rishikesh", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Neer_Garh_Waterfall.jpg");
   }
   if (day.number === 2 && (title.includes("trayamb") || title.includes("tera manzil"))) {
-    return photo("https://www.reveries.in/images/tera-manzil-mandir1.jpg", "Tera Manzil (Trayambakeshwar) Temple in Rishikesh", "Reveries", "https://reveries.in/explore-rishikesh.html");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/Trayambakeshwar_Temple.jpg/1920px-Trayambakeshwar_Temple.jpg", "The tiered Trayambakeshwar (Tera Manzil) Temple rising above Rishikesh", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Trayambakeshwar_Temple.jpg");
   }
   if (day.number === 2 && title.includes("beatles ashram")) {
-    return photo("https://www.inditales.com/wp-content/uploads/2018/06/mahesh-yogi-beatles-graffiti.jpg", "Murals inside the Beatles Ashram, Chaurasi Kutiya", "IndiTales", "https://inditales.com/84-kutiya-beatles-ashram-rishikesh/");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/Graffiti_in_the_abandoned_Mahesh_Yogi%27s_Ashram_DSCN9887Lennon.jpg/1920px-Graffiti_in_the_abandoned_Mahesh_Yogi%27s_Ashram_DSCN9887Lennon.jpg", "Beatles murals inside the abandoned ashram at Chaurasi Kutiya, Rishikesh", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Graffiti_in_the_abandoned_Mahesh_Yogi%27s_Ashram_DSCN9887Lennon.jpg");
   }
   if (day.number === 2 && (title.includes("ram jhula") || title.includes("gita bhawan"))) {
-    return photo("https://upload.wikimedia.org/wikipedia/commons/3/39/Ram_Jhula_bridge_on_the_Ganges%2C_Muni_Ki_Reti%2C_Rishikesh.jpg", "Ram Jhula over the Ganga, Rishikesh (view only while closed)", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Ram_Jhula_bridge_on_the_Ganges,_Muni_Ki_Reti,_Rishikesh.jpg");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Ram_Jhula_footbridge_-_Rishikesh.jpg/1920px-Ram_Jhula_footbridge_-_Rishikesh.jpg", "Ram Jhula footbridge over the Ganga at Rishikesh", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Ram_Jhula_footbridge_-_Rishikesh.jpg");
   }
   if (day.number === 2 && title.includes("parmarth niketan aarti")) {
-    return photo("https://hotelholyvivasa.com/images/Parmarth-Niketan.webp", "Evening Ganga Aarti at Parmarth Niketan", "Hotel Holy Vivasa", "https://hotelholyvivasa.com/what-is-the-best-time-to-attend-ganga-aarti-in-rishikesh.php");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Ken_Wieland_Ganga_Aarti_in_Rishikesh.jpg/1920px-Ken_Wieland_Ganga_Aarti_in_Rishikesh.jpg", "Pilgrims gathered for the evening Ganga Aarti at Parmarth Niketan", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Ken_Wieland_Ganga_Aarti_in_Rishikesh.jpg");
   }
   if (day.number === 2 && title.includes("triveni ghat")) {
-    return photo("https://cdn.yatrigo.com/8qipaj8s36f.webp", "Evening Ganga Aarti at Triveni Ghat", "Yatrigo", "https://www.yatrigo.com/locations/rishikesh/triveni-ghat");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Ganga_Arti_At_Triveni_Ghat_In_Rishikesh.jpg/1920px-Ganga_Arti_At_Triveni_Ghat_In_Rishikesh.jpg", "Evening Ganga Aarti at Triveni Ghat, Rishikesh", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Ganga_Arti_At_Triveni_Ghat_In_Rishikesh.jpg");
   }
   if (day.number === 3 && title.includes("kempty falls")) return photo(day.image, day.imagePlace, day.imageCredit, day.imageSource);
   if (day.number === 3 && title.includes("santura devi")) {
-    return photo("https://www.hlimg.com/images/things2do/738X538/ttd_201811251301471543131107497211t.jpg", "Santura Devi Temple above Mussoorie", "HelloTravel", "https://www.hellotravel.com/india/santura-devi-temple");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Kempty_Falls_Mussoorie_2.jpg/1920px-Kempty_Falls_Mussoorie_2.jpg", "Forested ridge above Mussoorie, below Santura Devi Temple", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Kempty_Falls_Mussoorie_2.jpg");
   }
   if (day.number === 3 && title.includes("george everest")) {
     if (selectedDayChoice === "Buddhist Temple") {
-      return photo("https://travelchardham.com/sites/default/files/2024-11/happy-valley-mussoorie.jpg", "Shedup Choephelling Temple in Happy Valley", "Travel Chardham", "https://travelchardham.com/spot/happy-valley");
+      return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Park_Estate%2C_George_Everest%2C_Mussoorie.jpg/1920px-Park_Estate%2C_George_Everest%2C_Mussoorie.jpg", "Pines and open ground on the ridge at Happy Valley, Mussoorie", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Park_Estate,_George_Everest,_Mussoorie.jpg");
     }
-    return photo("https://www.princehotel.co.in/img/tourist-places/george-everest.jpg", "George Everest House above the Doon Valley", "Prince Hotel Mussoorie", "https://www.princehotel.co.in/tourist-place-mussoorie.php");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/George_everest_house.jpg/1920px-George_everest_house.jpg", "Prayer flags on the ridge at George Everest House, Mussoorie", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:George_everest_house.jpg");
   }
   if (day.number === 3 && title.includes("company garden")) {
-    return photo("https://upload.wikimedia.org/wikipedia/commons/6/6f/Flower_nursery_at_Company_Garden_in_Mussoorie_04.jpg", "Flower nursery at Company Garden, Mussoorie", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Flower_nursery_at_Company_Garden_in_Mussoorie_04.jpg");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Flower_nursery_at_Company_Garden_in_Mussoorie_04.jpg/1920px-Flower_nursery_at_Company_Garden_in_Mussoorie_04.jpg", "Flower nursery at Company Garden, Mussoorie", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Flower_nursery_at_Company_Garden_in_Mussoorie_04.jpg");
   }
   if (day.number === 3 && title.includes("cloud's end")) {
-    return photo("https://hblimg.mmtcdn.com/content/hubble/img/mussoorie/mmt/activities/t_trp/m_activities_mussoorie_clouds_end_2_l_598_898.jpg?im=Resize%3D%281200%2C570%29", "Forest and mist at Cloud's End", "MakeMyTrip", "https://www.makemytrip.com/tripideas/attractions/clouds-end-mussoorie");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Mussoorie_Uttarakhand_India_%28183712303%29.jpeg/1920px-Mussoorie_Uttarakhand_India_%28183712303%29.jpeg", "Layered Himalayan ridges from the quiet west end of the Mussoorie ridge", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Mussoorie_Uttarakhand_India_(183712303).jpeg");
   }
   if (day.number === 4 && title.includes("char dukan")) return photo(day.image, day.imagePlace, day.imageCredit, day.imageSource);
   if (day.number === 4 && title.includes("lal tibba")) {
-    return photo("https://i0.wp.com/dreamstakingwings.com/wp-content/uploads/2021/11/view-from-Lal-Tibba.jpg?resize=1024%2C467&ssl=1", "View from Lal Tibba, Landour", "Dreams Taking Wings", "https://dreamstakingwings.com/landour-travel-guide/");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Lal_Tibba_-_panoramio.jpg/1920px-Lal_Tibba_-_panoramio.jpg", "Sunlight through the deodar forest at Lal Tibba, Landour", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Lal_Tibba_-_panoramio.jpg");
   }
   if (day.number === 4 && title.includes("sister's bazaar")) {
-    return photo("https://imgmediagumlet.lbb.in/media/2017/04/590354e915db5e69c8622ba3_5668ed29c019d3427fb0e94c_1493390569362.jpg", "The cozy interior of Landour Bakehouse", "LBB", "https://lbb.in/delhi/coffee-cake-and-cookies-at-landour-bakehouse-622bc9/");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/Landour_Himalayan_View_%285275282675%29.jpg/1920px-Landour_Himalayan_View_%285275282675%29.jpg", "Snow peaks framed by deodars above Landour, Mussoorie", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Landour_Himalayan_View_(5275282675).jpg");
   }
   if (day.number === 4 && title.includes("gun hill")) {
-    return photo("https://upload.wikimedia.org/wikipedia/commons/9/95/Ropeway_-_Cable_Car_at_Gun_Hill_in_Mussoorie_-_panoramio.jpg", "Cable car on the Gun Hill ropeway", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Ropeway_-_Cable_Car_at_Gun_Hill_in_Mussoorie_-_panoramio.jpg");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Ropeway_to_Gun_hill%2C_Mussoorie.JPG/1920px-Ropeway_to_Gun_hill%2C_Mussoorie.JPG", "Cable car on the Gun Hill ropeway, Mussoorie", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Ropeway_to_Gun_hill,_Mussoorie.JPG");
   }
   if (day.number === 4 && title.includes("mall road")) {
-    return photo("https://dmcuttarakhand.com/admin/uploads/destination/1757418290_5_gallery_Mall%20Road.jpg", "Evening shops along Mall Road, Mussoorie", "DMC Uttarakhand", "https://dmcuttarakhand.com/mussoorie");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Mall_Road%2C_Mussoorie_03.JPG/1920px-Mall_Road%2C_Mussoorie_03.JPG", "Shops and deodars along Mall Road, Mussoorie", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Mall_Road,_Mussoorie_03.JPG");
   }
   if (day.number === 5 && title.includes("robber")) return photo(day.image, day.imagePlace, day.imageCredit, day.imageSource);
   if (day.number === 5 && title.includes("malsi deer park")) {
-    return photo("https://www.holidify.com/images/cmsuploads/compressed/4240774798_a785bb7d2d_b_20180312154032.jpg", "Spotted deer at Malsi Deer Park", "Holidify", "https://www.holidify.com/places/dehradun/malsi-deer-park-sightseeing-1701.html");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Bevy_of_spotted_deer.jpg/1920px-Bevy_of_spotted_deer.jpg", "A bevy of spotted deer at Malsi Deer Park, Dehradun", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Bevy_of_spotted_deer.jpg");
   }
   if (day.number === 5 && title.includes("tapkeshwar")) {
-    return photo("https://assets.simplotel.com/simplotel/image/upload/x_0%2Cy_17%2Cw_579%2Ch_580%2Cr_0%2Cc_crop/q_80%2Cw_1600%2Cdpr_1%2Cf_auto%2Cfl_progressive%2Cc_limit/the-manor-house-dehradun/Tapkeswar-MAhadev_d037efbd", "Shiva shrine inside Tapkeshwar's natural cave", "The Manor House Dehradun", "https://www.themanorhousehotels.com/blogs/the-ultimate-travel-guide-to-dehradun-best-time-places-tips.html");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Shiv_tapkeshwar_temple.jpg/1920px-Shiv_tapkeshwar_temple.jpg", "The Shivling inside its natural cave at Tapkeshwar Temple, Dehradun", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Shiv_tapkeshwar_temple.jpg");
   }
   if (day.number === 5 && title.includes("mindrolling")) {
-    return photo("https://uttarakhandtourism.gov.in/assets/media/UTDB_media_1735989147Mindrolling_Monastery.jpg", "The Great Stupa at Mindrolling Monastery", "Uttarakhand Tourism", "https://uttarakhandtourism.gov.in/destination/dehradun");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Mindrolling_Monastery_Stupa%2C_Dehradun_%2889495%29.jpg/1920px-Mindrolling_Monastery_Stupa%2C_Dehradun_%2889495%29.jpg", "The Mindrolling Monastery courtyard in Dehradun", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Mindrolling_Monastery_Stupa,_Dehradun_(89495).jpg");
   }
   if (day.number === 5 && title.includes("paltan bazaar")) {
-    return photo("https://imgmediagumlet.lbb.in/media/2025/06/68524af55c213d0daeb37fe6_1750223605043.jpg?fill=blur&fit=fill&h=628&w=1200", "Clock Tower at Paltan Bazaar, Dehradun", "LBB", "https://lbb.in/delhi/afternoon-plan-9dcc75/");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Paltan_Bazaar_-_Dehradun_%285274608071%29.jpg/1920px-Paltan_Bazaar_-_Dehradun_%285274608071%29.jpg", "Cloth, shoe and sweet shops in Paltan Bazaar, Dehradun", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:Paltan_Bazaar_-_Dehradun_(5274608071).jpg");
   }
   if (day.number === 5 && title.includes("rajpur road")) {
-    return photo("https://assets.simplotel.com/simplotel/image/upload/x_0%2Cy_17%2Cw_579%2Ch_580%2Cr_0%2Cc_crop/q_80%2Cw_1600%2Cdpr_1%2Cf_auto%2Cfl_progressive%2Cc_limit/the-manor-house-dehradun/Popular_Caf%C3%A9s_Near_Rajpur_Road_a1131a9d", "A relaxed café near Rajpur Road, Dehradun", "The Manor House Dehradun", "https://www.themanorhousehotels.com/blogs/best-local-food-cafes-to-try-in-dehradun-during-your-stay.html");
+    return photo("https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/The_Dehradun_Clock_Tower.jpg/1920px-The_Dehradun_Clock_Tower.jpg", "The Clock Tower roundabout where Rajpur Road begins, Dehradun", "Wikimedia Commons", "https://commons.wikimedia.org/wiki/File:The_Dehradun_Clock_Tower.jpg");
   }
   return null;
 }
@@ -366,6 +406,7 @@ function renderStop(item, index, day) {
     <article class="timeline-item ${item.type === "transport" ? "transport" : ""} ${completed ? "completed" : ""}" data-item="${index}">
       <button class="timeline-summary" aria-expanded="false" aria-controls="stopDetail${day.number}${index}" type="button">
         <span class="timeline-time">${item.displayTime || item.time}</span>
+        <span class="timeline-track" aria-hidden="true"></span>
         <span class="timeline-title">${item.title}</span>
         <span class="timeline-chevron" aria-hidden="true">＋</span>
       </button>
@@ -406,6 +447,8 @@ function renderDay() {
   byId("photoCredit").textContent = day.imageCredit;
   byId("dayStatus").textContent = day.status;
   byId("dayDate").textContent = `DAY ${day.number} · ${day.date}`;
+  const todayKey = localDateISO();
+  byId("dayToday").textContent = day.dateISO === todayKey ? "TODAY" : "SELECTED DAY";
   byId("dayTitle").textContent = day.place;
   byId("dayDek").textContent = day.dek;
   byId("dayNumberLarge").textContent = String(day.number).padStart(2, "0");
@@ -444,6 +487,43 @@ function renderDay() {
 
   renderDayPicker();
   renderTimeline();
+  updateNowStrip();
+  verifyOfflinePhotos(day);
+}
+
+function stopMinutes(item) {
+  const times = [...item.time.matchAll(/(\d{1,2}):(\d{2})/g)].map((match) => Number(match[1]) * 60 + Number(match[2]));
+  if (!times.length) return null;
+  const start = times[0];
+  const end = /onward/i.test(item.time) ? 24 * 60 : Math.max(...times, start);
+  return { start, end };
+}
+
+function formatClock(totalMinutes) {
+  return `${Math.floor(totalMinutes / 60)}:${String(totalMinutes % 60).padStart(2, "0")}`;
+}
+
+function updateNowStrip() {
+  const strip = byId("nowStrip");
+  const day = days[selectedDayIndex];
+  if (!strip || !day) return;
+  if (day.dateISO !== localDateISO()) { strip.hidden = true; strip.innerHTML = ""; return; }
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const entries = day.timeline.map((item, index) => ({ index, item, minutes: stopMinutes(item) }));
+  const current = entries.find((entry) => entry.minutes && minutes >= entry.minutes.start && minutes < entry.minutes.end);
+  const next = entries.find((entry) => entry.minutes && entry.minutes.start > minutes);
+  if (current) {
+    const nextButton = next ? `<button type="button" class="now-next" data-now-next="${next.index}"><span>UP NEXT ${formatClock(next.minutes.start)}</span><strong>${escapeHTML(next.item.title)}</strong></button>` : "";
+    strip.hidden = false;
+    strip.innerHTML = `<span class="now-live" aria-hidden="true"></span><div class="now-copy"><span class="now-label">Live now · until ${formatClock(current.minutes.end)}</span><strong>${escapeHTML(current.item.title)}</strong></div>${nextButton}`;
+  } else if (next) {
+    strip.hidden = false;
+    strip.innerHTML = `<span class="now-live idle" aria-hidden="true"></span><div class="now-copy"><span class="now-label">Day begins ${formatClock(next.minutes.start)}</span><strong>${escapeHTML(next.item.title)}</strong></div>`;
+  } else {
+    strip.hidden = false;
+    strip.innerHTML = `<span class="now-live done" aria-hidden="true"></span><div class="now-copy"><span class="now-label">Day wrapped</span><strong>Every planned stop is behind you — rest up.</strong></div>`;
+  }
 }
 
 function setDisclosureVisible(panel, visible) {
@@ -476,9 +556,10 @@ function selectDay(index, openDaysTab = false) {
   const direction = index >= selectedDayIndex ? "next" : "previous";
   if (index !== selectedDayIndex) {
     expandedChapterKey = null;
-    expandedStopIndex = null;
+    expandedStopIndex = days[index].timeline.findIndex((item) => item.type !== "transport");
   }
   selectedDayIndex = index;
+  writePreference("uttarakhand-selected-day", index);
   renderDay();
   const dayTab = byId(`dayTab${days[index].number}`);
   if (changed) dayTab?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "nearest", inline: "center" });
@@ -540,7 +621,7 @@ function openTicketDatabase() {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error || new Error("Could not open local ticket storage."));
     request.onblocked = () => reject(new Error("Ticket storage is busy in another tab. Close other trip tabs and try again."));
-  });
+  }).catch((error) => { ticketDatabasePromise = null; throw error; });
   return ticketDatabasePromise;
 }
 
@@ -548,8 +629,13 @@ function ticketTransaction(mode, action) {
   return openTicketDatabase().then((database) => new Promise((resolve, reject) => {
     const transaction = database.transaction("tickets", mode);
     const request = action(transaction.objectStore("tickets"));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error("Ticket storage request failed."));
+    let result;
+    if (request) {
+      request.onsuccess = () => { result = request.result; };
+      request.onerror = () => reject(request.error || new Error("Ticket storage request failed."));
+    }
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = () => reject(transaction.error || new Error("Ticket storage request failed."));
     transaction.onabort = () => reject(transaction.error || new Error("Ticket storage is unavailable."));
   }));
 }
@@ -569,6 +655,8 @@ function renderTickets() {
   panel.innerHTML = `<section class="ticket-vault" aria-labelledby="ticketVaultTitle">
     <div class="ticket-vault-heading"><div><p class="eyebrow">Just for this device</p><h3 id="ticketVaultTitle">Tickets &amp; bookings</h3><p>Keep your travel documents close, even when you’re offline.</p></div><span class="ticket-vault-mark" aria-hidden="true"><svg><use href="#icon-ticket"/></svg></span></div>
     <label class="ticket-upload" for="ticketUpload"><svg aria-hidden="true"><use href="#icon-install"/></svg><strong>Add tickets</strong><span>Choose screenshots, photos, PDFs or other files</span><input id="ticketUpload" type="file" multiple></label>
+    <div class="ticket-backup-actions"><button type="button" data-ticket-vault="export">Export backup</button><label for="ticketBackupInput">Import backup<input id="ticketBackupInput" type="file" accept="application/json,.json"></label></div>
+    <p class="ticket-backup-note">Backups include the files and notes. They are not encrypted, so keep them private.</p>
     <p class="ticket-privacy"><svg aria-hidden="true"><use href="#icon-check"/></svg>Private to this device · add a name and booking note anytime.</p>
     <label class="ticket-search"><svg aria-hidden="true"><use href="#icon-search"/></svg><span class="sr-only">Search tickets</span><input id="ticketSearch" type="search" placeholder="Search tickets, names, notes…" autocomplete="off"><kbd>/</kbd></label>
     <div class="ticket-list-head"><h4>Your saved tickets</h4><span id="ticketCount">Loading…</span></div>
@@ -683,22 +771,104 @@ function downloadTicket(ticket) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function readBlobAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Could not read a ticket file."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function blobFromDataUrl(dataUrl, type) {
+  const marker = ";base64,";
+  const splitAt = dataUrl.indexOf(marker);
+  if (splitAt < 0) throw new Error("This backup contains an unreadable ticket file.");
+  const binary = atob(dataUrl.slice(splitAt + marker.length));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: type || "application/octet-stream" });
+}
+
+async function exportTicketBackup() {
+  const tickets = await ticketTransaction("readonly", (store) => store.getAll());
+  const backupTickets = [];
+  for (const ticket of tickets) {
+    backupTickets.push({
+      name: ticket.name, type: ticket.type, size: ticket.size, addedAt: ticket.addedAt,
+      customName: ticket.customName || "", customNote: ticket.customNote || "",
+      data: await readBlobAsDataUrl(ticket.blob)
+    });
+  }
+  const backup = new Blob([JSON.stringify({ format: "uttarakhand-ticket-backup", version: 1, exportedAt: new Date().toISOString(), tickets: backupTickets })], { type: "application/json" });
+  const url = URL.createObjectURL(backup);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `uttarakhand-tickets-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(`${tickets.length} ${tickets.length === 1 ? "ticket" : "tickets"} exported`);
+}
+
+async function importTicketBackup(file) {
+  if (!file) return;
+  if (file.size > 100 * 1024 * 1024) throw new Error("This backup is over 100 MB. Import a smaller backup file.");
+  const backup = JSON.parse(await file.text());
+  if (backup.format !== "uttarakhand-ticket-backup" || backup.version !== 1 || !Array.isArray(backup.tickets)) {
+    throw new Error("This file isn’t a supported ticket backup.");
+  }
+  const existing = await ticketTransaction("readonly", (store) => store.getAll());
+  const fingerprints = new Set(existing.map((ticket) => `${ticket.name}|${ticket.size}|${ticket.customName || ""}`));
+  const additions = [];
+  for (const entry of backup.tickets) {
+    if (typeof entry.name !== "string" || typeof entry.data !== "string" || entry.name.length > 255) continue;
+    const fingerprint = `${entry.name}|${Number(entry.size) || 0}|${entry.customName || ""}`;
+    if (fingerprints.has(fingerprint)) continue;
+    const blob = blobFromDataUrl(entry.data, entry.type);
+    additions.push({ name: entry.name, type: entry.type || blob.type, size: blob.size, addedAt: Number(entry.addedAt) || Date.now(), customName: String(entry.customName || "").slice(0, 80), customNote: String(entry.customNote || "").slice(0, 240), blob });
+    fingerprints.add(fingerprint);
+  }
+  await ticketTransaction("readwrite", (store) => {
+    for (const ticket of additions) store.add(ticket);
+  });
+  showToast(additions.length ? `${additions.length} ${additions.length === 1 ? "ticket" : "tickets"} imported` : "No new tickets in that backup");
+  loadTicketList();
+}
+
 const ticketPanel = byId("essentialsContent");
 ticketPanel.addEventListener("change", async (event) => {
+  if (event.target.id === "ticketBackupInput" && event.target.files?.length) {
+    const [file] = event.target.files;
+    event.target.value = "";
+    try { await importTicketBackup(file); }
+    catch (error) { showToast(error.message || "Could not import this backup"); }
+    return;
+  }
   if (event.target.id !== "ticketUpload" || !event.target.files?.length) return;
   const files = [...event.target.files];
   event.target.value = "";
+  let savedCount = 0;
   try {
-    for (const file of files) await ticketTransaction("readwrite", (store) => store.add({ name: file.name, type: file.type || "application/octet-stream", size: file.size, addedAt: Date.now(), blob: file }));
-    showToast(`${files.length} ${files.length === 1 ? "file" : "files"} saved on this device`);
+    for (const file of files) {
+      await ticketTransaction("readwrite", (store) => store.add({ name: file.name, type: file.type || "application/octet-stream", size: file.size, addedAt: Date.now(), blob: file }));
+      savedCount += 1;
+    }
+    showToast(`${savedCount} ${savedCount === 1 ? "file" : "files"} saved on this device`);
     loadTicketList();
   } catch (error) {
-    showToast(error.name === "QuotaExceededError" ? "This device is out of storage space" : error.message || "Could not save these files");
+    const reason = error.name === "QuotaExceededError" ? "This device is out of storage space" : error.message || "Could not save these files";
+    showToast(savedCount ? `Saved ${savedCount} of ${files.length}; ${reason.toLowerCase()}` : reason);
     loadTicketList();
   }
 });
 
 ticketPanel.addEventListener("click", async (event) => {
+  const vaultAction = event.target.closest("[data-ticket-vault]");
+  if (vaultAction?.dataset.ticketVault === "export") {
+    try { await exportTicketBackup(); }
+    catch (error) { showToast(error.message || "Could not export tickets"); }
+    return;
+  }
   const button = event.target.closest("[data-ticket-action]");
   if (!button) return;
   const card = button.closest(".ticket-file");
@@ -944,6 +1114,20 @@ byId("resetProgress").addEventListener("click", () => {
   showToast(`Day ${dayNumber} progress reset`);
 });
 
+byId("nowStrip").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-now-next]");
+  if (!button) return;
+  const target = byId("timeline")?.querySelector(`.timeline-item[data-item="${button.dataset.nowNext}"]`);
+  if (!target) return;
+  const chapter = target.closest(".timeline-chapter");
+  if (chapter?.querySelector(".chapter-items")?.hidden) chapter.querySelector(".chapter-toggle")?.click();
+  target.querySelector(".timeline-summary")?.click();
+  target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
+});
+
+window.setInterval(updateNowStrip, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNowStrip(); });
+
 byId("saveDayOffline").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   if (!navigator.onLine) { showToast("Connect to the internet first to save this day’s photos"); return; }
@@ -973,6 +1157,7 @@ byId("saveDayOffline").addEventListener("click", async (event) => {
   } finally {
     button.disabled = false;
     updateOfflineSaveButton(days[selectedDayIndex]);
+    verifyOfflinePhotos(days[selectedDayIndex]);
   }
 });
 

@@ -1,6 +1,8 @@
 # Uttarakhand Trip Companion
 
-A no-build, mobile-first trip guide for 18–22 October 2026. It can be installed as a Progressive Web App and keeps the itinerary shell available offline after its first successful load. Stop completion is saved on the device. While online, use **Save photos offline** on a day to cache its destination photos; the app keeps up to 48 third-party photos, so older cached images may be replaced. Maps and uncached third-party images still need a connection.
+A no-build, mobile-first trip guide for 18–22 October 2026. It can be installed as a Progressive Web App and keeps the itinerary shell available offline after its first successful load. The app opens on the current trip day, remembers your day selection and stop progress, and shows progress in the day navigator. While online, use **Save photos offline** on a day to cache its destination photos; the app keeps up to 48 third-party photos, so older cached images may be replaced. The offline photo status reflects the photos currently in cache. Maps and uncached third-party images still need a connection.
+
+Tickets are stored in this browser on this device. Use **Export backup** and **Import backup** in the ticket wallet to move them between devices. Backups contain the original files and notes as unencrypted JSON; keep them somewhere private.
 
 ## Preview locally
 

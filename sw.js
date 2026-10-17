@@ -1,4 +1,4 @@
-const SHELL_CACHE = "uttarakhand-shell-v5";
+const SHELL_CACHE = "uttarakhand-shell-v9";
 const PHOTO_CACHE = "uttarakhand-photos-v1";
 const SHELL_FILES = [
   "./",
@@ -35,25 +35,44 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SAVE_DAY_PHOTOS") {
     event.waitUntil((async () => {
       const urls = [...new Set(event.data.urls || [])];
-      const results = await Promise.all(urls.map(async (url) => {
-        try { await updateCachedPhoto(new Request(url, { mode: "no-cors" })); return url; }
-        catch { return null; }
-      }));
+      const results = [];
+      for (const url of urls) {
+        try {
+          const response = await updateCachedPhoto(new Request(url, { mode: "no-cors" }), false);
+          results.push(response.ok || response.type === "opaque" ? url : null);
+        }
+        catch { results.push(null); }
+      }
       const savedUrls = results.filter(Boolean);
+      const cache = await caches.open(PHOTO_CACHE);
+      await trimPhotoCache(cache);
       event.ports[0]?.postMessage({ saved: savedUrls.length, total: urls.length, savedUrls });
+    })());
+  }
+  if (event.data?.type === "CHECK_CACHED_PHOTOS") {
+    event.waitUntil((async () => {
+      const cache = await caches.open(PHOTO_CACHE);
+      const urls = [...new Set(event.data.urls || [])];
+      const cachedUrls = [];
+      for (const url of urls) if (await cache.match(url, { ignoreVary: true })) cachedUrls.push(url);
+      event.ports[0]?.postMessage({ cachedUrls });
     })());
   }
 });
 
-async function updateCachedPhoto(request) {
+async function trimPhotoCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length > MAX_CACHED_PHOTOS) {
+    await Promise.all(keys.slice(0, keys.length - MAX_CACHED_PHOTOS).map((key) => cache.delete(key)));
+  }
+}
+
+async function updateCachedPhoto(request, trim = true) {
   const cache = await caches.open(PHOTO_CACHE);
   const response = await fetch(request);
   if (response.ok || response.type === "opaque") {
     await cache.put(request, response.clone());
-    const keys = await cache.keys();
-    if (keys.length > MAX_CACHED_PHOTOS) {
-      await Promise.all(keys.slice(0, keys.length - MAX_CACHED_PHOTOS).map((key) => cache.delete(key)));
-    }
+    if (trim) await trimPhotoCache(cache);
   }
   return response;
 }
